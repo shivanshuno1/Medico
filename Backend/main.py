@@ -77,6 +77,10 @@ FRONTEND_ORIGINS = [
     for o in os.getenv("FRONTEND_ORIGIN", DEFAULT_FRONTEND_ORIGINS).split(",")
     if o.strip()
 ]
+if "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app" not in FRONTEND_ORIGINS:
+    FRONTEND_ORIGINS.append(
+        "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app"
+    )
 
 if not HUGGINGFACEHUB_API_TOKEN:
     print("WARNING: HUGGINGFACEHUB_API_TOKEN is not set — chat calls will fail.")
