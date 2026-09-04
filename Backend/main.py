@@ -29,6 +29,7 @@ Design notes / simplifications made on purpose for a safe first deployment:
 import base64
 import io
 import os
+import threading
 import warnings
 from pathlib import Path
 
@@ -79,39 +80,10 @@ if not GOOGLE_API_KEY:
 else:
     genai.configure(api_key=GOOGLE_API_KEY)
 
-# ----------------------------------------------------
-# 2. LLM + EMBEDDINGS + FAISS (loaded once at startup)
-# ----------------------------------------------------
-llm = HuggingFaceEndpoint(
-    repo_id="Qwen/Qwen2.5-7B-Instruct",
-    task="text-generation",
-    max_new_tokens=256,
-    temperature=0.1,
-    do_sample=True,
-    repetition_penalty=1.1,
-    huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
-)
-chat_model = ChatHuggingFace(llm=llm)
-
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
 FAISS_PATH = Path(__file__).resolve().parent / "services" / "faiss_db"
 INDEX_FILE = FAISS_PATH / "index.faiss"
-
-if not FAISS_PATH.exists() or not INDEX_FILE.exists():
-    FAISS_PATH.mkdir(parents=True, exist_ok=True)
-    vectorstore = FAISS.from_texts(
-        ["No medical context is currently available. Please add documents to the FAISS database."],
-        embeddings,
-    )
-    vectorstore.save_local(str(FAISS_PATH))
-    print(f"No FAISS index found — created an empty fallback store at {FAISS_PATH}.")
-else:
-    vectorstore = FAISS.load_local(
-        str(FAISS_PATH), embeddings, allow_dangerous_deserialization=True
-    )
-
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+rag_chain = None
+rag_chain_lock = threading.Lock()
 
 # ----------------------------------------------------
 # 3. PROMPT + RAG CHAIN
@@ -143,16 +115,59 @@ def format_docs(docs) -> str:
     return "\n\n".join(doc.page_content for doc in docs)
 
 
-rag_chain = (
-    {
-        "context": (lambda x: x["question"]) | retriever | format_docs,
-        "question": lambda x: x["question"],
-        "chat_history": lambda x: x["chat_history"],
-    }
-    | prompt
-    | chat_model
-    | StrOutputParser()
-)
+def get_rag_chain():
+    global rag_chain
+    if rag_chain is None:
+        with rag_chain_lock:
+            if rag_chain is None:
+                llm = HuggingFaceEndpoint(
+                    repo_id="Qwen/Qwen2.5-7B-Instruct",
+                    task="text-generation",
+                    max_new_tokens=256,
+                    temperature=0.1,
+                    do_sample=True,
+                    repetition_penalty=1.1,
+                    huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
+                )
+                chat_model = ChatHuggingFace(llm=llm)
+                embeddings = HuggingFaceEmbeddings(
+                    model_name="sentence-transformers/all-MiniLM-L6-v2"
+                )
+
+                if not FAISS_PATH.exists() or not INDEX_FILE.exists():
+                    FAISS_PATH.mkdir(parents=True, exist_ok=True)
+                    vectorstore = FAISS.from_texts(
+                        [
+                            "No medical context is currently available. "
+                            "Please add documents to the FAISS database."
+                        ],
+                        embeddings,
+                    )
+                    vectorstore.save_local(str(FAISS_PATH))
+                    print(
+                        f"No FAISS index found — created an empty fallback store at {FAISS_PATH}."
+                    )
+                else:
+                    vectorstore = FAISS.load_local(
+                        str(FAISS_PATH),
+                        embeddings,
+                        allow_dangerous_deserialization=True,
+                    )
+
+                retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+                rag_chain = (
+                    {
+                        "context": (lambda x: x["question"])
+                        | retriever
+                        | format_docs,
+                        "question": lambda x: x["question"],
+                        "chat_history": lambda x: x["chat_history"],
+                    }
+                    | prompt
+                    | chat_model
+                    | StrOutputParser()
+                )
+    return rag_chain
 
 
 def build_history(pairs: list[dict] | None) -> list:
@@ -231,7 +246,7 @@ def chat(req: ChatRequest):
     if not req.message or not req.message.strip():
         raise HTTPException(status_code=400, detail="message is required.")
     try:
-        reply = rag_chain.invoke(
+        reply = get_rag_chain().invoke(
             {"question": req.message, "chat_history": build_history(req.history)}
         )
         return {"reply": reply}
@@ -249,7 +264,7 @@ def analyze_image(req: ImageRequest):
             image_bytes,
             req.message or "Describe this image in detail for medical analysis.",
         )
-        reply = rag_chain.invoke(
+        reply = get_rag_chain().invoke(
             {"question": question_text, "chat_history": []}
         )
         return {"reply": reply}
