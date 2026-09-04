@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+
+Backend/.env
+Backend/__pycache__/
+Backend/**/__pycache__/
+Backend/venv/
+Backend/services/faiss_db/
+
+Frontend/vite-project/.env
+Frontend/vite-project/.env.local
+Frontend/vite-project/node_modules/
+Frontend/vite-project/dist/
