@@ -37,7 +37,7 @@ const BAR_COUNT = 28;
 // Set VITE_API_BASE_URL in .env.local — e.g. http://localhost:3001 in dev.
 // Left empty, requests stay relative, which works if you proxy /api to the
 // backend in vite.config.ts (already set up below) or reverse-proxy it in prod.
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export default function ConsultChat() {
   const [messages, setMessages] = useState<Message[]>([]);
