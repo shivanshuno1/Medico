@@ -71,17 +71,20 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 # "https://medico.vercel.app,http://localhost:5173"
 DEFAULT_FRONTEND_ORIGINS = (
     "http://localhost:5173,"
-    "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app"
+    "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app,"
+    "https://vite-project-2-swart.vercel.app"
 )
 FRONTEND_ORIGINS = [
     o.strip().rstrip("/")
     for o in os.getenv("FRONTEND_ORIGIN", DEFAULT_FRONTEND_ORIGINS).split(",")
     if o.strip()
 ]
-if "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app" not in FRONTEND_ORIGINS:
-    FRONTEND_ORIGINS.append(
-        "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app"
-    )
+for required_origin in (
+    "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app",
+    "https://vite-project-2-swart.vercel.app",
+):
+    if required_origin not in FRONTEND_ORIGINS:
+        FRONTEND_ORIGINS.append(required_origin)
 
 if not HUGGINGFACEHUB_API_TOKEN:
     print("WARNING: HUGGINGFACEHUB_API_TOKEN is not set — chat calls will fail.")
