@@ -68,8 +68,13 @@ HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 # Comma-separated list of allowed frontend origins, e.g.
 # "https://medico.vercel.app,http://localhost:5173"
+DEFAULT_FRONTEND_ORIGINS = (
+    "http://localhost:5173,"
+    "https://vite-project-2-git-main-shivanshu-rawats-projects.vercel.app"
+)
 FRONTEND_ORIGINS = [
-    o.strip() for o in os.getenv("FRONTEND_ORIGIN", "http://localhost:5173").split(",")
+    o.strip().rstrip("/")
+    for o in os.getenv("FRONTEND_ORIGIN", DEFAULT_FRONTEND_ORIGINS).split(",")
     if o.strip()
 ]
 
