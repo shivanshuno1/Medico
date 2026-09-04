@@ -112,6 +112,10 @@ If the answer cannot be found in the context, say:
 Medical Context:
 {context}
 """
+NO_CONTEXT_REPLY = (
+    "I don't have enough information from the medical database to answer this "
+    "safely. Please consult a licensed healthcare professional."
+)
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -260,6 +264,8 @@ def health():
 def chat(req: ChatRequest):
     if not req.message or not req.message.strip():
         raise HTTPException(status_code=400, detail="message is required.")
+    if not INDEX_FILE.exists():
+        return {"reply": NO_CONTEXT_REPLY}
     try:
         reply = get_rag_chain().invoke(
             {"question": req.message, "chat_history": build_history(req.history)}
