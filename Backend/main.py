@@ -53,6 +53,7 @@ from langchain_huggingface import (
     HuggingFaceEmbeddings,
 )
 from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import FakeEmbeddings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
@@ -139,11 +140,10 @@ def get_rag_chain():
                     huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN,
                 )
                 chat_model = ChatHuggingFace(llm=llm)
-                embeddings = HuggingFaceEmbeddings(
-                    model_name="sentence-transformers/all-MiniLM-L6-v2"
-                )
-
                 if not FAISS_PATH.exists() or not INDEX_FILE.exists():
+                    # Avoid downloading the embedding model when the deployment
+                    # has no knowledge base yet.
+                    embeddings = FakeEmbeddings(size=384)
                     FAISS_PATH.mkdir(parents=True, exist_ok=True)
                     vectorstore = FAISS.from_texts(
                         [
@@ -157,6 +157,9 @@ def get_rag_chain():
                         f"No FAISS index found — created an empty fallback store at {FAISS_PATH}."
                     )
                 else:
+                    embeddings = HuggingFaceEmbeddings(
+                        model_name="sentence-transformers/all-MiniLM-L6-v2"
+                    )
                     vectorstore = FAISS.load_local(
                         str(FAISS_PATH),
                         embeddings,
